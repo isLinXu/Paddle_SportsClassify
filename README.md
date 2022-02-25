@@ -1,0 +1,2 @@
+# Paddle_SportsClassify
+使用PaddlePaddle框架进行100项运动的图像分类项目
