@@ -1,0 +1,56 @@
+{
+    "input_size": [3, 224, 224],                              
+    "class_dim": 100,                                         
+    "src_path":"/home/aistudio/data/data129412/sports_trains.zip",      
+    "target_path":"/home/aistudio/data/dataset",              
+    "train_list_path": "./train_data.txt",                    
+    "eval_list_path": "./val_data.txt",                       
+    "readme_path": "/home/aistudio/data/readme.json",         
+    "label_dict":{},                                          
+    "image_count": -1,                                        
+    "train_batch_size": 32,                           
+    "num_epochs":  40,                                
+    "mode": "train",                                          
+                                            
+    "network_resnet": {                 
+        "layer": 50                     
+    },                                              
+    "continue_train": false,            
+    "regenerat_imgs": false,            
+    "mean_rgb": [127.5, 127.5, 127.5],  
+    "use_gpu": true,
+    "use_image_enhance": false,
+    "learning_strategy": {                                         
+        "lr": 0.000125,                                               
+        "name": "cosine_decay",
+        "batch_size": 32,
+        "epochs": [40, 80, 100],
+        "steps": [0.1, 0.01, 0.001, 0.0001]
+    },  
+    "early_stop": {  
+        "sample_frequency": 50,  
+        "successive_limit": 3,  
+        "good_acc1": 0.9975 
+    },  
+    "rms_strategy": {  
+        "learning_rate": 0.001,
+        "lr_epochs": [20, 40, 60, 80, 100],  
+        "lr_decay": [1, 0.5, 0.25, 0.1, 0.01, 0.002]  
+    },  
+    "momentum_strategy": {  
+        "learning_rate": 0.0001,    
+        "lr_epochs": [20, 40, 60, 80, 100],  
+        "lr_decay": [1, 0.5, 0.25, 0.1, 0.01, 0.002]  
+    },  
+    "sgd_strategy": {  
+        "learning_rate": 0.001,
+        "lr_epochs": [20, 40, 60, 80, 100],  
+        "lr_decay": [1, 0.5, 0.25, 0.1, 0.01, 0.002]  
+    },  
+    "adam_strategy": {  
+        "learning_rate": 0.002          
+    }, 
+    "adamax_strategy": {  
+        "learning_rate": 0.00125  
+    }      
+}
