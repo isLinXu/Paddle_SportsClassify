@@ -13,14 +13,7 @@ from paddle.fluid.dygraph import Linear
 import matplotlib.pyplot as plt
 
 
-'''
-参数初始化
-'''
-src_path=train_parameters['src_path']
-target_path=train_parameters['target_path']
-train_list_path=train_parameters['train_list_path']
-eval_list_path=train_parameters['eval_list_path']
-batch_size=train_parameters['train_batch_size']
+
 '''
 解压原始数据到指定路径
 '''
@@ -49,3 +42,14 @@ eval_reader = paddle.batch(custom_reader(eval_list_path, 'eval'),
                             drop_last=True)
 
 
+if __name__ == '__main__':
+
+    
+    '''
+    参数初始化
+    '''
+    src_path=train_parameters['src_path']
+    target_path=train_parameters['target_path']
+    train_list_path=train_parameters['train_list_path']
+    eval_list_path=train_parameters['eval_list_path']
+    batch_size=train_parameters['train_batch_size']
