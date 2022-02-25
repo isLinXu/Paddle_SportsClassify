@@ -1,4 +1,3 @@
-
 #导入需要的包
 import os
 import zipfile
@@ -12,8 +11,11 @@ import paddle.fluid as fluid
 from paddle.fluid.dygraph import Linear
 import matplotlib.pyplot as plt
 
-
-'''
+if __name__ == '__main__':
+    # DATA_PATH = "/home/linxu/Downloads/GoogleDownload/CaptchaDataset-master/CaptchaDataset-master/Classify_Dataset"
+    # Reader(DATA_PATH).print_sample(1)
+    print('start train!')
+    '''
 参数配置
 '''
 batch_size = 32  ##
@@ -94,9 +96,159 @@ train_parameters = {
     }      
 }
 
+'''
+模型训练，继续炼丹
+'''
+train_parameters["num_epochs"] = 40  # 设置轮次
+epochs_num = train_parameters["num_epochs"]
+batch_size = train_parameters["train_batch_size"] # train_parameters["learning_strategy"]["batch_size"]
+total_images=train_parameters["image_count"]
+stepsnumb = int(math.ceil(float(total_images) / batch_size))        
 
-if __name__ == '__main__':
-    # DATA_PATH = "/home/linxu/Downloads/GoogleDownload/CaptchaDataset-master/CaptchaDataset-master/Classify_Dataset"
-    # Reader(DATA_PATH).print_sample(1)
-    print('start train!')
+# resnet层数定义，要改一下
+#train_parameters["layer"] = 50  
+
+with fluid.dygraph.guard(place = fluid.CUDAPlace(0)):   #使用GPU进行训练
+##with fluid.dygraph.guard():                            #使用CPU进行训练
+    print('class_dims:',train_parameters['class_dim'])
+    print('label_dict:',train_parameters['label_dict'])
+
+    best_acc = 0    
+    best_epc = -1 
+    eval_epchnumber = 0
+    all_eval_avgacc = []
+    all_eval_iters = []
+
+    all_train_iter =0
+    all_train_iters=[]
+    all_train_costs=[]
+    all_train_accs=[]
+
+    model = ResNet("resnet", train_parameters["network_resnet"]["layer"], train_parameters["class_dim"])
+
+    #"""
+    if True:        
+        try:
+            if os.path.exists('MyResNet_best.pdparams'):
+                print('try model file MyResNet_best. Loading...')
+                model_dict, _ = fluid.load_dygraph('MyResNet_best')        
+                if os.path.exists('beast_acc_ResNet.txt'):
+                    with open('beast_acc_ResNet.txt', "r") as f:
+                        best_acc = float(f.readline())
+            else:
+                print('try model file MyResNet. Loading...')
+                model_dict, _ = fluid.load_dygraph('MyResNet')        
+                if os.path.exists('acc_ResNet.txt'):
+                    with open('acc_ResNet.txt', "r") as f:
+                        best_acc = float(f.readline())
+            #防止上一次acc太大，导致本次训练结果不存储了
+            start_acc = min(0.92,train_parameters["early_stop"]["good_acc1"])
+            if best_acc>=start_acc:
+                best_acc=start_acc        
+            model.load_dict(model_dict) #加载模型参数  
+        except Exception as e:
+            print(e)                
+        print('model initialization finished.')
+    #"""   
+
+    #后面代码会切换工作模式
+    model.train() #训练模式
+
+    paramsList=model.parameters()
+    params = train_parameters
+    total_images = params["image_count"]
+    ls = params["learning_strategy"]
+    batch_size = ls["batch_size"]
+    step = int(math.ceil(float(total_images) / batch_size))
+    bd = [step * e for e in ls["epochs"]]
+    # 固定学习率
+    lr = 0.0000625 #params["learning_strategy"]["lr"]  #0.00125
+    num_epochs = params["num_epochs"]
+    regularization=fluid.regularizer.L2Decay(regularization_coeff=0.1)
+    learning_rate=lr
+
+    # 学习率衰减
+    # learning_rate=fluid.layers.cosine_decay(
+    #    learning_rate=lr, step_each_epoch=step, epochs=num_epochs)
+    #momentum_rate = 0.9
+
+    #定义优化方法 optimizer_momentum_setting, optimizer_sgd_setting, optimizer_rms_setting, optimizer_adam_setting, optimizer_Adamax_setting
+    #optimizer = optimizer_momentum_setting(model.parameters())
+    #optimizer = fluid.optimizer.Momentum(learning_rate=learning_rate,momentum=momentum_rate,regularization=regularization,parameter_list=paramsList)
+    #optimizer=fluid.optimizer.SGDOptimizer(learning_rate=learning_rate, regularization=regularization, parameter_list=paramsList)
+    optimizer=fluid.optimizer.AdamaxOptimizer(learning_rate=learning_rate, regularization=regularization, parameter_list=paramsList)
+    #optimizer=fluid.optimizer.AdamOptimizer(learning_rate=learning_rate, regularization=regularization, parameter_list=paramsList) 
+
+    #epochs_num = 1
+     #开始训练
+    for epoch_num in range(epochs_num):
+        model.train() #训练模式
+         #从train_reader中获取每个批次的数据
+        for batch_id, data in enumerate(train_reader()):
+            #dy_x_data = np.array([x[0] for x in data]).astype('float32')
+            #y_data = np.array([x[1] for x in data]).astype('int')
+            dy_x_data = np.array([x[0] for x in data]).astype('float32').reshape(-1, 3,224,224)
+            y_data = np.array([x[1] for x in data]).astype('int64').reshape(-1,1)                               
+
+            #将Numpy转换为DyGraph接收的输入
+            img = fluid.dygraph.to_variable(dy_x_data)
+            label = fluid.dygraph.to_variable(y_data)
+
+            out,acc = model(img,label)
+            loss = fluid.layers.cross_entropy(out, label)
+            avg_loss = fluid.layers.mean(loss)
+
+            #使用backward()方法可以执行反向网络
+            avg_loss.backward()
+            optimizer.minimize(avg_loss)             
+            #将参数梯度清零以保证下一轮训练的正确性
+            model.clear_gradients()            
+
+            all_train_iter=all_train_iter+train_parameters['train_batch_size']
+            all_train_iters.append(all_train_iter)
+            all_train_costs.append(loss.numpy()[0])
+            all_train_accs.append(acc.numpy()[0])
+            
+            dy_param_value = {}
+            for param in model.parameters():
+                dy_param_value[param.name] = param.numpy
+                
+            if batch_id % 100 == 0 or batch_id == stepsnumb-1:
+                print("epoch %3d step %4d: loss: %f, acc: %f" % (epoch_num, batch_id, avg_loss.numpy(), acc.numpy()))
+
+        if epoch_num % 1 == 0 or epoch_num == epochs_num-1:
+            model.eval()      
+            epoch_acc = eval_net(eval_reader, model) 
+            print('  train_pass:%d,eval_acc=%f' % (epoch_num,epoch_acc))  
+            eval_epchnumber = epoch_num
+            all_eval_avgacc.append(epoch_acc)
+            all_eval_iters.append([eval_epchnumber, epoch_acc])
+                
+            if best_acc < epoch_acc:  
+                best_epc=epoch_num                                      
+                best_acc=epoch_acc
+                #保存模型参数，对应当前最好的评估结果
+                fluid.save_dygraph(model.state_dict(),'MyResNet_best')
+                print('    current best_eval_acc=%f in No.%d epoch' % (best_acc,best_epc)) 
+                print('    MyResNet_best模型已保存')
+                with open('beast_acc_ResNet.txt', "w") as f:
+                    f.write(str(best_acc))
+                #fluid.dygraph.save_dygraph(model.state_dict(), "save_dir/ResNet/model_best")
+                #fluid.dygraph.save_dygraph(optimizer.state_dict(), "save_dir/ResNet/model_best")    
+
+            #训练过程结果显示
+            draw_train_process("training",all_train_iters,all_train_costs,all_train_accs,"trainning loss","trainning acc")      
+    
+    #保存模型参数，但不一定是最好评估结果对应的模型
+    fluid.save_dygraph(model.state_dict(), "MyResNet")   
+    print('MyResNetG模型已保存')
+    print("Final loss: {}".format(avg_loss.numpy()))
+    #fluid.dygraph.save_dygraph(model.state_dict(), "save_dir/model")
+    #fluid.dygraph.save_dygraph(optimizer.state_dict(), "save_dir/model")   
+    with open('acc_ResNet.txt', "w") as f:
+        f.write(str(epoch_acc)) 
+
+    draw_train_process("training",all_train_iters,all_train_costs,all_train_accs,"trainning loss","trainning acc")  
+    draw_process("trainning loss","red",all_train_iters,all_train_costs,"trainning loss")
+    draw_process("trainning acc","green",all_train_iters,all_train_accs,"trainning acc")          
 

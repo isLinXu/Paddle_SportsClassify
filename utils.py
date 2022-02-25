@@ -115,3 +115,27 @@ def get_data_list(target_path,train_list_path,eval_list_path):
     with open(train_parameters['readme_path'],'w') as f:
         f.write(jsons)
     print ('生成数据列表完成！')
+
+
+'''
+PLOT画图
+'''
+def draw_train_process(title,iters,costs,accs,label_cost,lable_acc):
+    plt.title(title, fontsize=24)
+    plt.xlabel("iter", fontsize=20)
+    plt.ylabel("loss/acc", fontsize=20)
+    plt.plot(iters, costs,color='red',label=label_cost) 
+    plt.plot(iters, accs,color='green',label=lable_acc) 
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
+def draw_process(title,color,iters,data,label):
+    plt.title(title, fontsize=24)
+    plt.xlabel("iter", fontsize=20)
+    plt.ylabel(label, fontsize=20)
+    plt.plot(iters, data,color=color,label=label) 
+    plt.legend()
+    plt.grid()
+    plt.show() 
